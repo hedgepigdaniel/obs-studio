@@ -29,14 +29,15 @@
  * 	for the sake of convenience.
  */
 
+#include "gl-x11.h"
+#include "obs-platform.h"
+
 #include <X11/Xlib.h>
 #include <X11/Xlib-xcb.h>
 
 #include <xcb/xcb.h>
 
 #include <stdio.h>
-
-#include "gl-subsystem.h"
 
 #include <glad/glad_glx.h>
 
@@ -221,14 +222,13 @@ static void gl_context_destroy(struct gl_platform *plat)
 	bfree(plat);
 }
 
-extern struct gl_windowinfo *
-gl_windowinfo_create(const struct gs_init_data *info)
+struct gl_windowinfo *gl_x11_windowinfo_create(const struct gs_init_data *info)
 {
 	UNUSED_PARAMETER(info);
 	return bmalloc(sizeof(struct gl_windowinfo));
 }
 
-extern void gl_windowinfo_destroy(struct gl_windowinfo *info)
+void gl_x11_windowinfo_destroy(struct gl_windowinfo *info)
 {
 	UNUSED_PARAMETER(info);
 	bfree(info);
@@ -236,7 +236,7 @@ extern void gl_windowinfo_destroy(struct gl_windowinfo *info)
 
 static Display *open_windowless_display(void)
 {
-	Display *display = XOpenDisplay(NULL);
+	Display *display = obs_get_platform_display();
 	xcb_connection_t *xcb_conn;
 	xcb_screen_iterator_t screen_iterator;
 	xcb_screen_t *screen;
@@ -274,8 +274,6 @@ static Display *open_windowless_display(void)
 	return display;
 
 error:
-	if (display)
-		XCloseDisplay(display);
 	return NULL;
 }
 
@@ -295,8 +293,8 @@ static int x_error_handler(Display *display, XErrorEvent *error)
 	return 0;
 }
 
-extern struct gl_platform *gl_platform_create(gs_device_t *device,
-					      uint32_t adapter)
+struct gl_platform *gl_x11_platform_create(gs_device_t *device,
+					   uint32_t adapter)
 {
 	/* There's some trickery here... we're mixing libX11, xcb, and GLX
 	   For an explanation see here: http://xcb.freedesktop.org/MixingCalls/
@@ -347,7 +345,7 @@ success:
 	return plat;
 }
 
-extern void gl_platform_destroy(struct gl_platform *plat)
+void gl_x11_platform_destroy(struct gl_platform *plat)
 {
 	if (!plat) /* In what case would platform be invalid here? */
 		return;
@@ -355,7 +353,7 @@ extern void gl_platform_destroy(struct gl_platform *plat)
 	gl_context_destroy(plat);
 }
 
-extern bool gl_platform_init_swapchain(struct gs_swap_chain *swap)
+bool gl_x11_platform_init_swapchain(struct gs_swap_chain *swap)
 {
 	Display *display = swap->device->plat->display;
 	xcb_connection_t *xcb_conn = XGetXCBConnection(display);
@@ -430,13 +428,13 @@ success:
 	return status;
 }
 
-extern void gl_platform_cleanup_swapchain(struct gs_swap_chain *swap)
+void gl_x11_platform_cleanup_swapchain(struct gs_swap_chain *swap)
 {
 	UNUSED_PARAMETER(swap);
 	/* Really nothing to clean up? */
 }
 
-extern void device_enter_context(gs_device_t *device)
+void x11_device_enter_context(gs_device_t *device)
 {
 	GLXContext context = device->plat->context;
 	Display *display = device->plat->display;
@@ -454,7 +452,7 @@ extern void device_enter_context(gs_device_t *device)
 	}
 }
 
-extern void device_leave_context(gs_device_t *device)
+void x11_device_leave_context(gs_device_t *device)
 {
 	Display *display = device->plat->display;
 
@@ -463,13 +461,13 @@ extern void device_leave_context(gs_device_t *device)
 	}
 }
 
-void *device_get_device_obj(gs_device_t *device)
+void *x11_device_get_device_obj(gs_device_t *device)
 {
 	return device->plat->context;
 }
 
-extern void gl_getclientsize(const struct gs_swap_chain *swap, uint32_t *width,
-			     uint32_t *height)
+void gl_x11_getclientsize(const struct gs_swap_chain *swap, uint32_t *width,
+			  uint32_t *height)
 {
 	xcb_connection_t *xcb_conn =
 		XGetXCBConnection(swap->device->plat->display);
@@ -485,7 +483,7 @@ extern void gl_getclientsize(const struct gs_swap_chain *swap, uint32_t *width,
 	free(geometry);
 }
 
-extern void gl_update(gs_device_t *device)
+void gl_x11_update(gs_device_t *device)
 {
 	Display *display = device->plat->display;
 	xcb_window_t window = device->cur_swap->wi->window;
@@ -498,7 +496,7 @@ extern void gl_update(gs_device_t *device)
 			     values);
 }
 
-extern void device_load_swapchain(gs_device_t *device, gs_swapchain_t *swap)
+void x11_device_load_swapchain(gs_device_t *device, gs_swapchain_t *swap)
 {
 	if (device->cur_swap == swap)
 		return;
@@ -528,7 +526,7 @@ enum swap_type {
 	SWAP_TYPE_SGI,
 };
 
-extern void device_present(gs_device_t *device)
+void x11_device_present(gs_device_t *device)
 {
 	static bool initialized = false;
 	static enum swap_type swap_type = SWAP_TYPE_NORMAL;
